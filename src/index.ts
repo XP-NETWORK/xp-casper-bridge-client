@@ -5,11 +5,15 @@ import {
   RuntimeArgs,
   Keys,
   CLValueBuilder,
+  CLByteArray,
+  CLU256,
+  CLU8,
 } from "casper-js-sdk";
 import {
   FreezeArgs,
   InitializeArgs,
   PauseData,
+  SigData,
   UnpauseData,
   UpdateGroupKey,
   ValidateBlacklist,
@@ -21,6 +25,7 @@ import {
 } from "./types";
 import { Contracts } from "casper-js-sdk";
 import { CONTRACT_WASM } from "./wasms";
+import { Serializer } from "./struct-serializer";
 const { Contract } = Contracts;
 
 const convertHashStrToHashBuff = (hashStr: string) => {
@@ -35,7 +40,6 @@ const buildHashList = (list: string[]) =>
   list.map((hashStr) =>
     CLValueBuilder.byteArray(convertHashStrToHashBuff(hashStr))
   );
-
 export class XpBridgeClient {
   private casperClient: CasperClient;
 
@@ -46,6 +50,7 @@ export class XpBridgeClient {
   private keys?: Keys.AsymmetricKey[];
 
   private deploySender?: CLPublicKey;
+  private serializer = Serializer();
 
   constructor(
     public nodeAddress: string,
@@ -65,7 +70,9 @@ export class XpBridgeClient {
     keys?: Keys.AsymmetricKey[],
     wasm?: Uint8Array
   ) {
-    const rt_args = RuntimeArgs.fromMap({});
+    const rt_args = RuntimeArgs.fromMap({
+      number: new CLU256(Math.ceil(Math.random() * 1000000000)),
+    });
     wasm = wasm || CONTRACT_WASM;
 
     return this.contractClient.install(
@@ -113,15 +120,9 @@ export class XpBridgeClient {
     keys?: Keys.AsymmetricKey[]
   ) {
     const rt_args = RuntimeArgs.fromMap({
-      contract: CLValueBuilder.byteArray(
-        convertHashStrToHashBuff(args.contract)
+      freeze_data: CLValueBuilder.list(
+        [...this.serializer.freezeNft(args)].map((e) => new CLU8(e))
       ),
-      token_id: CLValueBuilder.string(args.token_id),
-      to: CLValueBuilder.string(args.to),
-      mint_with: CLValueBuilder.string(args.mint_with),
-      chain_nonce: CLValueBuilder.u8(args.chain_nonce),
-      amt: CLValueBuilder.u512(args.amt),
-      sig_data: CLValueBuilder.byteArray(args.sig_data),
     });
 
     return this.contractClient.callEntrypoint(
@@ -162,13 +163,14 @@ export class XpBridgeClient {
   }
 
   public validatePause(
-    args: PauseData,
+    args: PauseData & SigData,
     amt: string,
     deploySender: CLPublicKey,
     keys?: Keys.AsymmetricKey[]
   ) {
     const rt_args = RuntimeArgs.fromMap({
       action_id: CLValueBuilder.u256(args.actionId),
+      sig_data: CLValueBuilder.byteArray(args.sig_data),
     });
 
     return this.contractClient.callEntrypoint(
@@ -181,13 +183,14 @@ export class XpBridgeClient {
     );
   }
   public validateUnpause(
-    args: UnpauseData,
+    args: UnpauseData & SigData,
     amt: string,
     deploySender: CLPublicKey,
     keys?: Keys.AsymmetricKey[]
   ) {
     const rt_args = RuntimeArgs.fromMap({
       action_id: CLValueBuilder.u256(args.actionId),
+      sig_data: CLValueBuilder.byteArray(args.sig_data),
     });
 
     return this.contractClient.callEntrypoint(
@@ -200,7 +203,7 @@ export class XpBridgeClient {
     );
   }
   public validateTransferNft(
-    args: ValidateTransferData,
+    args: ValidateTransferData & SigData,
     amt: string,
     deploySender: CLPublicKey,
     keys?: Keys.AsymmetricKey[]
@@ -211,9 +214,10 @@ export class XpBridgeClient {
         convertHashStrToHashBuff(args.mint_with)
       ),
       receiver: CLValueBuilder.byteArray(
-        convertHashStrToHashBuff(args.mint_with)
+        convertHashStrToHashBuff(args.receiver)
       ),
       action_id: CLValueBuilder.u256(args.action_id),
+      sig_data: CLValueBuilder.byteArray(args.sig_data),
     });
 
     return this.contractClient.callEntrypoint(
@@ -227,7 +231,7 @@ export class XpBridgeClient {
   }
 
   public validateUnfreezeNft(
-    args: ValidateUnfreezeData,
+    args: ValidateUnfreezeData & SigData,
     amt: string,
     deploySender: CLPublicKey,
     keys?: Keys.AsymmetricKey[]
@@ -241,6 +245,7 @@ export class XpBridgeClient {
         convertHashStrToHashBuff(args.receiver)
       ),
       action_id: CLValueBuilder.u256(args.action_id),
+      sig_data: CLValueBuilder.byteArray(args.sig_data),
     });
 
     return this.contractClient.callEntrypoint(
@@ -254,7 +259,7 @@ export class XpBridgeClient {
   }
 
   public validateUpdateGroupKey(
-    args: UpdateGroupKey,
+    args: UpdateGroupKey & SigData,
     amt: string,
     deploySender: CLPublicKey,
     keys?: Keys.AsymmetricKey[]
@@ -262,6 +267,7 @@ export class XpBridgeClient {
     const rt_args = RuntimeArgs.fromMap({
       new_key: CLValueBuilder.byteArray(args.new_key),
       action_id: CLValueBuilder.u256(args.action_id),
+      sig_data: CLValueBuilder.byteArray(args.sig_data),
     });
 
     return this.contractClient.callEntrypoint(
@@ -275,7 +281,7 @@ export class XpBridgeClient {
   }
 
   public validateUpdateFeePk(
-    args: UpdateGroupKey,
+    args: UpdateGroupKey & SigData,
     amt: string,
     deploySender: CLPublicKey,
     keys?: Keys.AsymmetricKey[]
@@ -283,6 +289,7 @@ export class XpBridgeClient {
     const rt_args = RuntimeArgs.fromMap({
       new_key: CLValueBuilder.byteArray(args.new_key),
       action_id: CLValueBuilder.u256(args.action_id),
+      sig_data: CLValueBuilder.byteArray(args.sig_data),
     });
 
     return this.contractClient.callEntrypoint(
@@ -295,7 +302,7 @@ export class XpBridgeClient {
     );
   }
   public validateWithdrawFees(
-    args: WithdrawFeeData,
+    args: WithdrawFeeData & SigData,
     amt: string,
     deploySender: CLPublicKey,
     keys?: Keys.AsymmetricKey[]
@@ -305,6 +312,7 @@ export class XpBridgeClient {
         convertHashStrToHashBuff(args.receiver)
       ),
       action_id: CLValueBuilder.u256(args.action_id),
+      sig_data: CLValueBuilder.byteArray(args.sig_data),
     });
 
     return this.contractClient.callEntrypoint(
@@ -318,7 +326,7 @@ export class XpBridgeClient {
   }
 
   public validateBlacklist(
-    args: ValidateBlacklist,
+    args: ValidateBlacklist & SigData,
     amt: string,
     deploySender: CLPublicKey,
     keys?: Keys.AsymmetricKey[]
@@ -328,6 +336,7 @@ export class XpBridgeClient {
         convertHashStrToHashBuff(args.contract)
       ),
       action_id: CLValueBuilder.u256(args.action_id),
+      sig_data: CLValueBuilder.byteArray(args.sig_data),
     });
 
     return this.contractClient.callEntrypoint(
@@ -340,7 +349,7 @@ export class XpBridgeClient {
     );
   }
   public validateWhitelist(
-    args: ValidateWhitelist,
+    args: ValidateWhitelist & SigData,
     amt: string,
     deploySender: CLPublicKey,
     keys?: Keys.AsymmetricKey[]
@@ -350,6 +359,7 @@ export class XpBridgeClient {
         convertHashStrToHashBuff(args.contract)
       ),
       action_id: CLValueBuilder.u256(args.action_id),
+      sig_data: CLValueBuilder.byteArray(args.sig_data),
     });
 
     return this.contractClient.callEntrypoint(

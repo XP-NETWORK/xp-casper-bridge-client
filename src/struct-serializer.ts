@@ -5,6 +5,8 @@ import {
   CLByteArrayBytesParser,
   CLKey,
   CLKeyBytesParser,
+  CLList,
+  CLListBytesParser,
   CLString,
   CLStringBytesParser,
   CLU256,
@@ -89,11 +91,12 @@ export function Serializer() {
         .expect(
           "Serialize(FreezeArgs): Failed to serialize mint_with to bytes."
         );
-      const sig_data = byteArraySerializer
-        .toBytes(new CLByteArray(args.sig_data))
+      const sig_data = stringSerializer
+        .toBytes(new CLString(Buffer.from(args.sig_data).toString("hex")))
         .expect(
           "Serialize(FreezeArgs): Failed to serialize sig_data to bytes."
         );
+      console.log(`Sig:`, Buffer.from(sig_data).toString("hex"));
       const chain_nonce = u8Serializer
         .toBytes(new CLU8(args.chain_nonce))
         .expect(
@@ -134,8 +137,8 @@ export function Serializer() {
           "Serialize(WithdrawArgs): Failed to serialize token_id to bytes."
         );
 
-      const sig_data = byteArraySerializer
-        .toBytes(new CLByteArray(args.sig_data))
+      const sig_data = stringSerializer
+        .toBytes(new CLString(Buffer.from(args.sig_data).toString("hex")))
         .expect(
           "Serialize(WithdrawArgs): Failed to serialize sig_data to bytes."
         );

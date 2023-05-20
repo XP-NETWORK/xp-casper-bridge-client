@@ -66,3 +66,7 @@ export interface ValidateWhitelist {
   action_id: BigNumberish;
   contract: string;
 }
+
+export interface SigData {
+  sig_data: Uint8Array;
+}
