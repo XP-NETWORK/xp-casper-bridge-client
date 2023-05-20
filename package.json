@@ -18,10 +18,12 @@
   "author": "Jan Hoffmann <jan@casperlabs.io>",
   "license": "ISC",
   "devDependencies": {
+    "@types/chai": "^4.3.5",
     "@types/mocha": "^10.0.1",
     "@typescript-eslint/eslint-plugin": "^5.41.0",
     "@typescript-eslint/parser": "^5.41.0",
     "casper-cep78-js-client": "^1.2.0",
+    "chai": "^4.3.7",
     "dotenv": "^16.0.1",
     "eslint": "^8.25.0",
     "eslint-config-airbnb-base": "^15.0.0",
