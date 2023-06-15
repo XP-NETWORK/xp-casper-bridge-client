@@ -8,6 +8,7 @@ import {
   CLByteArray,
   CLU256,
   CLU8,
+  CLAccountHash,
 } from "casper-js-sdk";
 import {
   FreezeArgs,
@@ -41,7 +42,7 @@ const buildHashList = (list: string[]) =>
     CLValueBuilder.byteArray(convertHashStrToHashBuff(hashStr))
   );
 export class XpBridgeClient {
-  private casperClient: CasperClient;
+  public casperClient: CasperClient;
 
   public contractClient: Contracts.Contract;
 
@@ -213,8 +214,8 @@ export class XpBridgeClient {
       mint_with: CLValueBuilder.byteArray(
         convertHashStrToHashBuff(args.mint_with)
       ),
-      receiver: CLValueBuilder.byteArray(
-        convertHashStrToHashBuff(args.receiver)
+      receiver: CLValueBuilder.key(
+        new CLAccountHash(Buffer.from(args.receiver, "hex"))
       ),
       action_id: CLValueBuilder.u256(args.action_id),
       sig_data: CLValueBuilder.byteArray(args.sig_data),
