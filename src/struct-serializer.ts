@@ -27,6 +27,7 @@ import {
   PauseData,
   UnpauseData,
   ValidateTransferData,
+  FeeSig,
 } from "./types";
 
 export function Serializer() {
@@ -262,6 +263,21 @@ export function Serializer() {
           "Serialize(UpdateGroupKey): Failed to serialize new_key to bytes."
         );
       return Buffer.concat([action_id, new_key]);
+    },
+    feeSig(args: FeeSig) {
+      const value = u512Serializer
+        .toBytes(new CLU512(args.value))
+        .expect("Serialize(FeeSig): Failed to serialize value to bytes.");
+      const from = u8Serializer
+        .toBytes(new CLU8(args.from))
+        .expect("Serialize(FeeSig): Failed to serialize from to bytes.");
+      const to = u8Serializer
+        .toBytes(new CLU8(args.to))
+        .expect("Serialize(FeeSig): Failed to serialize to to bytes.");
+      const receiver = stringSerializer
+        .toBytes(new CLString(args.receiver))
+        .expect("Serialize(FeeSig): Failed to serialize receiver to bytes.");
+      return Buffer.concat([value, from, to, receiver]);
     },
   };
 }

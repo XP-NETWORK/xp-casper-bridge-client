@@ -25,7 +25,7 @@ import {
   WithdrawFeeData,
 } from "./types";
 import { Contracts } from "casper-js-sdk";
-import { CONTRACT_WASM } from "./wasms";
+import { CONTRACT_WASM, FREEZE_NFT_WASM, WITHDRAW_NFT_WASM } from "./wasms";
 import { Serializer } from "./struct-serializer";
 const { Contract } = Contracts;
 
@@ -121,17 +121,24 @@ export class XpBridgeClient {
     keys?: Keys.AsymmetricKey[]
   ) {
     const rt_args = RuntimeArgs.fromMap({
-      freeze_data: CLValueBuilder.list(
-        [...this.serializer.freezeNft(args)].map((e) => new CLU8(e))
+      bridge_contract: CLValueBuilder.byteArray(this.contractHashKey.data.data),
+      contract: CLValueBuilder.byteArray(
+        convertHashStrToHashBuff(args.contract)
       ),
+      token_id: CLValueBuilder.string(args.token_id),
+      to: CLValueBuilder.string(args.to),
+      mint_with: CLValueBuilder.string(args.mint_with),
+      chain_nonce: CLValueBuilder.u8(args.chain_nonce),
+      amount: CLValueBuilder.u512(args.amt),
+      sig_data: CLValueBuilder.byteArray(args.sig_data),
     });
 
-    return this.contractClient.callEntrypoint(
-      "freeze_nft",
+    return this.contractClient.install(
+      FREEZE_NFT_WASM,
       rt_args,
+      amt,
       deploySender || this.deploySender,
       this.networkName,
-      amt,
       keys || this.keys || []
     );
   }
@@ -146,19 +153,20 @@ export class XpBridgeClient {
       contract: CLValueBuilder.byteArray(
         convertHashStrToHashBuff(args.contract)
       ),
+      bridge_contract: CLValueBuilder.byteArray(this.contractHashKey.data.data),
       token_id: CLValueBuilder.string(args.token_id),
       to: CLValueBuilder.string(args.to),
       chain_nonce: CLValueBuilder.u8(args.chain_nonce),
-      amt: CLValueBuilder.u512(args.amt),
+      amount: CLValueBuilder.u512(args.amt),
       sig_data: CLValueBuilder.byteArray(args.sig_data),
     });
 
-    return this.contractClient.callEntrypoint(
-      "withdraw_nft",
+    return this.contractClient.install(
+      WITHDRAW_NFT_WASM,
       rt_args,
+      amt,
       deploySender || this.deploySender,
       this.networkName,
-      amt,
       keys || this.keys || []
     );
   }
@@ -242,8 +250,8 @@ export class XpBridgeClient {
         convertHashStrToHashBuff(args.contract)
       ),
       token_id: CLValueBuilder.string(args.token_id),
-      receiver: CLValueBuilder.byteArray(
-        convertHashStrToHashBuff(args.receiver)
+      receiver: CLValueBuilder.key(
+        new CLAccountHash(Buffer.from(args.receiver, "hex"))
       ),
       action_id: CLValueBuilder.u256(args.action_id),
       sig_data: CLValueBuilder.byteArray(args.sig_data),

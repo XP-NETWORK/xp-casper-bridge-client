@@ -70,3 +70,10 @@ export interface ValidateWhitelist {
 export interface SigData {
   sig_data: Uint8Array;
 }
+
+export interface FeeSig {
+  value: BigNumberish;
+  from: number;
+  to: number;
+  receiver: string;
+}
