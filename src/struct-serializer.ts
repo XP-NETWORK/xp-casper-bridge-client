@@ -173,7 +173,7 @@ export function Serializer() {
         .expect(
           "Serialize(WithdrawFeeData): Failed to serialize receiver to bytes."
         );
-      Buffer.concat([action_id, receiver]);
+      return Buffer.concat([action_id, receiver]);
     },
     pauseData(args: PauseData) {
       let action_id = u256Serializer
