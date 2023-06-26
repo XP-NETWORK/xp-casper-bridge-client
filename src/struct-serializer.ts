@@ -5,8 +5,6 @@ import {
   CLByteArrayBytesParser,
   CLKey,
   CLKeyBytesParser,
-  CLList,
-  CLListBytesParser,
   CLString,
   CLStringBytesParser,
   CLU256,

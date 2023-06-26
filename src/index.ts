@@ -1,14 +1,12 @@
 import {
   CasperClient,
-  CLKey,
   CLPublicKey,
   RuntimeArgs,
   Keys,
   CLValueBuilder,
-  CLByteArray,
   CLU256,
-  CLU8,
   CLAccountHash,
+  CLKey,
 } from "casper-js-sdk";
 import {
   FreezeArgs,
@@ -25,8 +23,9 @@ import {
   WithdrawFeeData,
 } from "./types";
 import { Contracts } from "casper-js-sdk";
-import { CONTRACT_WASM, FREEZE_NFT_WASM, WITHDRAW_NFT_WASM } from "./wasms";
-import { Serializer } from "./struct-serializer";
+import CONTRACT_WASM from "./wasmgen/contract.wasm";
+import FREEZE_NFT_WASM from "./wasmgen/freeze_nft_call.wasm";
+import WITHDRAW_NFT_WASM from "./wasmgen/withdraw_nft_call.wasm";
 const { Contract } = Contracts;
 
 const convertHashStrToHashBuff = (hashStr: string) => {
@@ -46,12 +45,11 @@ export class XpBridgeClient {
 
   public contractClient: Contracts.Contract;
 
-  public contractHashKey: CLKey;
+  public contractHashKey!: CLKey;
 
   private keys?: Keys.AsymmetricKey[];
 
   private deploySender?: CLPublicKey;
-  private serializer = Serializer();
 
   constructor(
     public nodeAddress: string,
@@ -67,7 +65,7 @@ export class XpBridgeClient {
 
   public deploy(
     paymentAmount: string,
-    deploySender?: CLPublicKey,
+    deploySender: CLPublicKey,
     keys?: Keys.AsymmetricKey[],
     wasm?: Uint8Array
   ) {
