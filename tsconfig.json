@@ -7,6 +7,8 @@
     "target": "es6",
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "experimentalDecorators": true
-  }
+    "experimentalDecorators": true,
+    "outDir": "dist/"
+  },
+  "exclude": ["tests/"]
 }
