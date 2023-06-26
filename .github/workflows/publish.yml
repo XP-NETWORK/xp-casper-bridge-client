@@ -36,7 +36,6 @@ jobs:
 
       - name: Prepare Production Release
         uses: s0/git-publish-subdir-action@develop
-        if: ${{ github.ref == 'refs/heads/production' }}
         env:
           REPO: self
           BRANCH: bleeding-edge
