@@ -3,15 +3,10 @@ import {
   Keys,
   CLPublicKey,
   CasperServiceByJsonRPC,
-  RuntimeArgs,
-  CLValue,
-  CLBool,
-  CLAccountHash,
-  CLKey,
-  CLValueBuilder,
   CLByteArray,
 } from "casper-js-sdk";
 import { XpBridgeClient } from "../src/index";
+import { Parser } from "@make-software/ces-js-parser";
 import * as ed from "@noble/ed25519";
 import { describe, test } from "mocha";
 import { expect } from "chai";
@@ -28,10 +23,10 @@ import {
   WhitelistMode,
   NFTHolderMode,
   EventsMode,
+  CESEventParserFactory,
 } from "casper-cep78-js-client/dist/src";
-import fs from "fs";
 import { Serializer } from "../src/struct-serializer";
-import rl from "readline/promises";
+import { config } from "dotenv";
 import {
   FeeSig,
   FreezeArgs,
@@ -42,31 +37,47 @@ import {
   WithdrawFeeData,
 } from "../src/types";
 
+config();
+
+console.log(process.env.PK);
+
 export const sleep = (ms: number) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
-
 export const getDeploy = async (nodeURL: string, deployHash: string) => {
+  // Sleep for a second to wait for the deploy to be processed
+  await sleep(1000);
   const client = new CasperClient(nodeURL);
   let i = 300;
   while (i !== 0) {
-    const [deploy, raw] = await client.getDeploy(deployHash);
-    if (raw.execution_results.length !== 0) {
-      // @ts-ignore
-      if (raw.execution_results[0].result.Success) {
-        return deploy;
-      } else {
+    try {
+      const [deploy, raw] = await client.getDeploy(deployHash);
+
+      if (raw.execution_results.length !== 0) {
         // @ts-ignore
-        throw Error(
-          "Contract execution: " +
-            // @ts-ignore
-            raw.execution_results[0].result.Failure.error_message
-        );
+        if (raw.execution_results[0].result.Success) {
+          return deploy;
+        } else {
+          // @ts-ignore
+          throw Error(
+            "Contract execution: " +
+              // @ts-ignore
+              raw.execution_results[0].result.Failure.error_message
+          );
+        }
+      } else {
+        i--;
+        await sleep(1000);
+        continue;
       }
-    } else {
-      i--;
-      await sleep(1000);
-      continue;
+    } catch (e: any) {
+      if (e.message.includes("deploy not known")) {
+        i--;
+        await sleep(1000);
+        continue;
+      } else {
+        throw e;
+      }
     }
   }
   throw Error("Timeout after " + i + "s. Something's wrong");
@@ -84,15 +95,21 @@ export const getAccountInfo: any = async (
 };
 
 describe("XP Bridge Client Tests", async () => {
-  // const keys = Keys.Secp256K1.new();
-  // fs.writeFileSync("./file.pem", keys.exportPrivateKeyInPem());
-  const keys = Keys.Secp256K1.loadKeyPairFromPrivateFile("./file.pem");
+  const priv = Keys.Ed25519.parsePrivateKey(
+    Buffer.from(process.env.PK!, "base64")
+  );
 
-  const nodeUrl = "https://rpc.testnet.casperlabs.io/rpc";
+  const pub = Keys.Ed25519.privateToPublicKey(priv);
+  const keys = Keys.Ed25519.parseKeyPair(pub, priv);
+  console.log(keys.publicKey.toAccountHashStr());
 
-  const client = new XpBridgeClient(nodeUrl, "casper-test", keys.publicKey, [
+  const nodeUrl = "http://localhost:11101/rpc";
+  const casper = new CasperClient(nodeUrl);
+  const client = new XpBridgeClient(nodeUrl, "casper-net-1", keys.publicKey, [
     keys,
   ]);
+  const randomGroupPk = ed.utils.randomPrivateKey();
+  const randomFeePk = ed.utils.randomPrivateKey();
   const signData = async (context: string, buf: Buffer) => {
     const hashed = crypto
       .createHash("sha512")
@@ -103,219 +120,208 @@ describe("XP Bridge Client Tests", async () => {
   };
   const collectionName = `XpNft`;
 
-  const nft = new CEP78Client(nodeUrl, "casper-test");
+  const nft = new CEP78Client(nodeUrl, "casper-net-1");
+  let bridgeContractHash: string;
+  let xpnftContractHash: string;
+  let userNftMinterContractHash: string;
 
-  test(`mint`, async () => {
-    nft.setContractHash(
-      "hash-5dcc145e51ed1e989b9411ee8312c408db3b21dcd6f91cbe70cc5202d18ba4fa"
-    );
+  test("deploy xpnft", async () => {
+    const n = await nft
+      .install(
+        {
+          collectionName,
+          collectionSymbol: "XPNFT",
+          identifierMode: NFTIdentifierMode.Ordinal,
+          metadataMutability: MetadataMutability.Immutable,
+          nftKind: NFTKind.Digital,
+          nftMetadataKind: NFTMetadataKind.Raw,
+          ownershipMode: NFTOwnershipMode.Transferable,
+          allowMinting: true,
+          burnMode: BurnMode.Burnable,
+          whitelistMode: WhitelistMode.Unlocked,
+          mintingMode: MintingMode.Public,
+          totalTokenSupply: "1000000",
+          holderMode: NFTHolderMode.Mixed,
+          eventsMode: EventsMode.CES,
+          hashKeyName: `${collectionName}-hash`,
+          contractWhitelist: [
+            "contract-hash-acb0e52177383b5e7ac3d133bf95beb90966c77f166ee5055b3a31ca94c2fc99",
+          ],
+          jsonSchema: {
+            properties: {},
+          },
+        },
+        "300000000000",
+        keys.publicKey,
+        [keys]
+      )
+      .send(nodeUrl);
 
-    //   console.log(
-    //     await nft
-    //       .setVariables(
-    //         {
-    //           contractWhitelist: [
-    //             "0d4e795fdc348c0816737fb583b9f136c290822de8687d7318eeed74f0f8e133",
-    //           ],
-    //         },
-    //         "4000000000",
-    //         keys.publicKey,
-    //         [keys]
-    //       )
-    //       .send(nodeUrl)
-    //   );
+    expect(n).to.not.equal(undefined);
 
-    //   console.log(
-    //     await nft
-    //       .approve(
-    //         {
-    //           operator: new CLByteArray(
-    //             Buffer.from(
-    //               "df3387efd88b0d0e7ff57b76a65b5e2a1201dd18aa6c8019fb6ceb9c387af9b5",
-    //               "hex"
-    //             )
-    //           ),
-    //           tokenId: "1",
-    //         },
-    //         "2000000000",
-    //         keys.publicKey,
-    //         [keys]
-    //       )
-    //       .send(nodeUrl)
-    //   );
+    console.log(`Xpnft Deploy Hash: `, n);
+    await getDeploy(nodeUrl, n);
   });
 
-  // test("deploy xpnft", async () => {
-  //   const n = await nft
-  //     .install(
-  //       {
-  //         collectionName,
-  //         collectionSymbol: "XPNFT",
-  //         identifierMode: NFTIdentifierMode.Ordinal,
-  //         metadataMutability: MetadataMutability.Immutable,
-  //         nftKind: NFTKind.Digital,
-  //         nftMetadataKind: NFTMetadataKind.Raw,
-  //         ownershipMode: NFTOwnershipMode.Transferable,
-  //         allowMinting: true,
-  //         burnMode: BurnMode.Burnable,
-  //         whitelistMode: WhitelistMode.Unlocked,
-  //         mintingMode: MintingMode.Public,
-  //         totalTokenSupply: "1000000",
-  //         holderMode: NFTHolderMode.Mixed,
-  //         eventsMode: EventsMode.CES,
-  //         hashKeyName: `${collectionName}-hash`,
-  //         contractWhitelist: [
-  //           "contract-hash-acb0e52177383b5e7ac3d133bf95beb90966c77f166ee5055b3a31ca94c2fc99",
-  //         ],
-  //         jsonSchema: {
-  //           properties: {},
-  //         },
-  //       },
-  //       "300000000000",
-  //       keys.publicKey,
-  //       [keys]
-  //     )
-  //     .send(nodeUrl);
+  test("deploy umt", async () => {
+    const n = await nft
+      .install(
+        {
+          collectionName: "UserNftMinter",
+          collectionSymbol: "UMT",
+          identifierMode: NFTIdentifierMode.Ordinal,
+          metadataMutability: MetadataMutability.Immutable,
+          nftKind: NFTKind.Digital,
+          nftMetadataKind: NFTMetadataKind.Raw,
+          ownershipMode: NFTOwnershipMode.Transferable,
+          allowMinting: true,
+          burnMode: BurnMode.Burnable,
+          whitelistMode: WhitelistMode.Unlocked,
+          mintingMode: MintingMode.Public,
+          totalTokenSupply: "1000000",
+          holderMode: NFTHolderMode.Mixed,
+          eventsMode: EventsMode.CES,
+          hashKeyName: `UserNftMinter-hash`,
+          contractWhitelist: [
+            "contract-hash-acb0e52177383b5e7ac3d133bf95beb90966c77f166ee5055b3a31ca94c2fc99",
+          ],
+          jsonSchema: {
+            properties: {},
+          },
+        },
+        "300000000000",
+        keys.publicKey,
+        [keys]
+      )
+      .send(nodeUrl);
 
-  //   expect(n).to.not.equal(undefined);
+    expect(n).to.not.equal(undefined);
 
-  //   console.log(`Xpnft Deploy Hash: `, n);
-  // });
+    console.log(`UMT Deploy Hash: `, n);
+    await getDeploy(nodeUrl, n);
+  });
 
-  const randomGroupPk = Buffer.from(
-    "eaf2be5844bef3ade99bf7434f6f0badaaa1b797e920987081315458261c0364",
-    "hex"
-  ); // ed.utils.randomPrivateKey();
-  console.log(`GroupPK: `, Buffer.from(randomGroupPk).toString("hex"));
-  const randomFeePk = Buffer.from(
-    "ae4b6d52459f0a8f1bef9c1e43e856276ae0b1ec53de1bca105bd211cdd4bc1e",
-    "hex"
-  );
-
-  console.log(`FeePK: `, Buffer.from(randomFeePk).toString("hex"));
-  const groupPublicKey = await ed.getPublicKey(randomGroupPk);
-  console.log(`Group Public Key:`, Buffer.from(groupPublicKey).toString("hex"));
-
-  const feePublicKey = await ed.getPublicKey(randomFeePk);
-  console.log(`Fee Public Key:`, Buffer.from(feePublicKey).toString("hex"));
-  const input = rl.createInterface(process.stdin, process.stdout);
   const serialize = Serializer();
 
-  let contractHash: string;
-
-  // test("test deploy", async () => {
-  //   fs.writeFileSync("file.pem", keys.exportPrivateKeyInPem(), {
-  //     flag: "w",
-  //   });
-  //   const response = await input.question("Funded? ");
-
-  //   const res = client.deploy("250000000000");
-  //   const result = await res.send(nodeUrl);
-  //   console.log(result);
-  //   await getDeploy(nodeUrl, result);
-  //   console.log(`Deployed Hash:`, result);
-  // });
-
-  test("get deploy", async () => {
-    // let acc = await getAccountInfo(nodeUrl, keys.publicKey);
-    contractHash =
-      "hash-df3387efd88b0d0e7ff57b76a65b5e2a1201dd18aa6c8019fb6ceb9c387af9b5";
-    console.log(`Contract Hash:`, contractHash);
-    client.setContractHash(contractHash);
+  test("test deploy", async () => {
+    const res = client.deploy("250000000000", keys.publicKey);
+    const result = await res.send(nodeUrl);
+    console.log(result);
+    await getDeploy(nodeUrl, result);
+    console.log(`Deployed Hash:`, result);
   });
 
-  // test("initialize", async () => {
-  //   const res = await client
-  //     .initialize(
-  //       {
-  //         fee_public_key: feePublicKey,
-  //         group_key: groupPublicKey,
-  //         whitelist: [
-  //           "5dcc145e51ed1e989b9411ee8312c408db3b21dcd6f91cbe70cc5202d18ba4fa",
-  //         ],
-  //       },
-  //       "10000000000",
-  //       keys.publicKey,
-  //       [keys]
-  //     )
-  //     .send(nodeUrl);
-  //   console.log(res);
-  //   await getDeploy(nodeUrl, res);
-  // });
+  test("get deploy", async () => {
+    let acc = await getAccountInfo(nodeUrl, keys.publicKey);
+    bridgeContractHash = acc.namedKeys
+      .filter((e: any) => e.name === "bridge_contract")
+      .map((e: any) => e.key)[0];
 
-  // test("validate_pause", async () => {
-  //   const action = {
-  //     actionId: Math.floor(Math.random() * 10000000),
-  //   };
-  //   const res = await client
-  //     .validatePause(
-  //       {
-  //         ...action,
-  //         sig_data: await signData("SetPause", serialize.pauseData(action)),
-  //       },
-  //       "30000000000",
-  //       keys.publicKey,
-  //       [keys]
-  //     )
-  //     .send(nodeUrl);
-  //   console.log(`Pause Res: `, res);
-  //   await getDeploy(nodeUrl, res);
-  //   const data: boolean = await client.contractClient.queryContractData([
-  //     "bridge_paused",
-  //   ]);
-  //   console.log(`Paused: `, data);
-  //   expect(data).to.equal(true);
-  // });
+    xpnftContractHash = acc.namedKeys
+      .filter(
+        (e: { name: string }) =>
+          e.name === `cep78_contract_hash_${collectionName}`
+      )
+      .map((e: { key: string }) => e.key)[0];
 
-  // test("validate_unpause", async () => {
-  //   const action = {
-  //     actionId: Math.floor(Math.random() * 10000000),
-  //   };
-  //   const res = await client
-  //     .validateUnpause(
-  //       {
-  //         ...action,
-  //         sig_data: await signData("SetUnpause", serialize.pauseData(action)),
-  //       },
-  //       "30000000000",
-  //       keys.publicKey,
-  //       [keys]
-  //     )
-  //     .send(nodeUrl);
-  //   console.log(`Unpause Res: `, res);
-  //   await getDeploy(nodeUrl, res);
-  //   const data: boolean = await client.contractClient.queryContractData([
-  //     "bridge_paused",
-  //   ]);
-  //   expect(data).to.equal(false);
-  // });
+    userNftMinterContractHash = acc.namedKeys
+      .filter(
+        (e: { name: string }) => e.name === `cep78_contract_hash_UserNftMinter`
+      )
+      .map((e: { key: string }) => e.key)[0];
+    client.setContractHash(bridgeContractHash);
+    nft.setContractHash(xpnftContractHash);
+  });
 
-  // test("validate_transfer_nft", async () => {
-  //   console.log(keys.publicKey.toAccountRawHashStr());
-  //   const action: ValidateTransferData = {
-  //     action_id: Math.floor(Math.random() * 10000000),
-  //     metadata: "https://meta.polkamon.com/meta?id=10001852306",
-  //     mint_with:
-  //       "c618184f2056b518fdaf7c51aa59fc70c5413c5b9dcabaf21fa3f9fa68efe06b",
-  //     receiver: keys.publicKey.toAccountRawHashStr(),
-  //   };
-  //   const res = await client
-  //     .validateTransferNft(
-  //       {
-  //         ...action,
-  //         sig_data: await signData(
-  //           "ValidateTransferNft",
-  //           serialize.validateTransferData(action)
-  //         ),
-  //       },
-  //       "30000000000",
-  //       keys.publicKey,
-  //       [keys]
-  //     )
-  //     .send(nodeUrl);
-  //   console.log(`Validate Transfer Nft Res: `, res);
-  //   await getDeploy(nodeUrl, res);
-  // });
+  test("initialize", async () => {
+    const res = await client
+      .initialize(
+        {
+          fee_public_key: await ed.getPublicKey(randomFeePk),
+          group_key: await ed.getPublicKey(randomGroupPk),
+          whitelist: [userNftMinterContractHash.split("-")[1]],
+        },
+        "10000000000",
+        keys.publicKey,
+        [keys]
+      )
+      .send(nodeUrl);
+    console.log(res);
+    await getDeploy(nodeUrl, res);
+  });
+
+  test("validate_pause", async () => {
+    const action = {
+      actionId: Math.floor(Math.random() * 10000000),
+    };
+    const res = await client
+      .validatePause(
+        {
+          ...action,
+          sig_data: await signData("SetPause", serialize.pauseData(action)),
+        },
+        "30000000000",
+        keys.publicKey,
+        [keys]
+      )
+      .send(nodeUrl);
+    console.log(`Pause Res: `, res);
+    await getDeploy(nodeUrl, res);
+    const data: boolean = await client.contractClient.queryContractData([
+      "bridge_paused",
+    ]);
+    console.log(`Paused: `, data);
+    expect(data).to.equal(true);
+  });
+
+  test("validate_unpause", async () => {
+    const action = {
+      actionId: Math.floor(Math.random() * 10000000),
+    };
+    const res = await client
+      .validateUnpause(
+        {
+          ...action,
+          sig_data: await signData("SetUnpause", serialize.pauseData(action)),
+        },
+        "30000000000",
+        keys.publicKey,
+        [keys]
+      )
+      .send(nodeUrl);
+    console.log(`Unpause Res: `, res);
+    await getDeploy(nodeUrl, res);
+    const data: boolean = await client.contractClient.queryContractData([
+      "bridge_paused",
+    ]);
+    expect(data).to.equal(false);
+  });
+
+  test("validate_transfer_nft", async () => {
+    console.log(keys.publicKey.toAccountRawHashStr());
+    const action: ValidateTransferData = {
+      action_id: Math.floor(Math.random() * 10000000),
+      metadata: "https://meta.polkamon.com/meta?id=10001852306",
+      mint_with: xpnftContractHash.split("-")[1],
+      receiver: keys.publicKey.toAccountRawHashStr(),
+    };
+    const res = await client
+      .validateTransferNft(
+        {
+          ...action,
+          sig_data: await signData(
+            "ValidateTransferNft",
+            serialize.validateTransferData(action)
+          ),
+        },
+        "30000000000",
+        keys.publicKey,
+        [keys]
+      )
+      .send(nodeUrl);
+    console.log(`Validate Transfer Nft Res: `, res);
+    const deploy = await getDeploy(nodeUrl, res);
+  });
 
   async function generateFeeSig(args: FeeSig) {
     const feeSig = serialize.feeSig(args);
@@ -325,70 +331,123 @@ describe("XP Bridge Client Tests", async () => {
     return await ed.sign(hash, randomFeePk);
   }
 
-  // test("approve", async () => {
-  //   nft.setContractHash(
-  //     "hash-665a5ba9bd825ae6b6c0f394bd2b3f105d596212136b3c7abfacd69f0fc01cb5"
-  //   );
-  //   const result = await nft
-  //     .approve(
-  //       {
-  //         operator: new CLByteArray(
-  //           Buffer.from(contractHash.split("-")[1], "hex")
-  //         ),
-  //         tokenId: "0",
-  //       },
-  //       "10000000000",
-  //       keys.publicKey,
-  //       [keys]
-  //     )
-  //     .send(nodeUrl);
-  //   console.log(`Approve: `, result);
-  // });
+  test("approve 0", async () => {
+    nft.setContractHash(userNftMinterContractHash);
 
-  // test("freeze nft", async () => {
-  //   const action: FreezeArgs = {
-  //     amt: "100",
-  //     chain_nonce: 4,
-  //     contract:
-  //       "5dcc145e51ed1e989b9411ee8312c408db3b21dcd6f91cbe70cc5202d18ba4fa",
-  //     mint_with: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
-  //     to: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
-  //     token_id: "1",
-  //     sig_data: await generateFeeSig({
-  //       from: 38,
-  //       to: 4,
-  //       receiver: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
-  //       value: 100,
-  //     }),
-  //   };
-  //   const res = await client
-  //     .freezeNft(action, "30000000000", keys.publicKey, [keys])
-  //     .send(nodeUrl);
-  //   console.log(`freeze Nft Res: `, res);
-  //   await getDeploy(nodeUrl, res);
-  // });
+    const minted = await nft
+      .mint(
+        {
+          meta: {
+            name: "test",
+            description: "test",
+            image: "test",
+          },
+          owner: keys.publicKey,
+          collectionName: "UserNftMinter",
+        },
+        { useSessionCode: false },
+        "15000000000",
+        keys.publicKey,
+        [keys]
+      )
+      .send(nodeUrl);
+    await getDeploy(nodeUrl, minted);
+    const result = await nft
+      .approve(
+        {
+          operator: new CLByteArray(
+            Buffer.from(bridgeContractHash.split("-")[1], "hex")
+          ),
+          tokenId: "0",
+        },
+        "10000000000",
+        keys.publicKey,
+        [keys]
+      )
+      .send(nodeUrl);
+    await getDeploy(nodeUrl, result);
+    console.log(`Approve: `, result);
+  });
+  test("approve 1", async () => {
+    nft.setContractHash(userNftMinterContractHash);
 
-  // test("withdraw nft", async () => {
-  //   const action: WithdrawArgs = {
-  //     amt: "1000000000",
-  //     chain_nonce: 4,
-  //     contract:
-  //       "5dcc145e51ed1e989b9411ee8312c408db3b21dcd6f91cbe70cc5202d18ba4fa",
-  //     to: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
-  //     token_id: "0",
-  //     sig_data: await generateFeeSig({
-  //       from: 38,
-  //       to: 4,
-  //       receiver: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
-  //       value: 1000000000,
-  //     }),
-  //   };
-  //   const res = await client
-  //     .withdrawNft(action, "30000000000", keys.publicKey, [keys])
-  //     .send(nodeUrl);
-  //   console.log(`freeze Nft Res: `, res);
-  //   await getDeploy(nodeUrl, res);
-  // });
+    const minted = await nft
+      .mint(
+        {
+          meta: {
+            name: "test",
+            description: "test",
+            image: "test",
+          },
+          owner: keys.publicKey,
+          collectionName: "UserNftMinter",
+        },
+        { useSessionCode: false },
+        "15000000000",
+        keys.publicKey,
+        [keys]
+      )
+      .send(nodeUrl);
+    await getDeploy(nodeUrl, minted);
+    const result = await nft
+      .approve(
+        {
+          operator: new CLByteArray(
+            Buffer.from(bridgeContractHash.split("-")[1], "hex")
+          ),
+          tokenId: "1",
+        },
+        "10000000000",
+        keys.publicKey,
+        [keys]
+      )
+      .send(nodeUrl);
+    await getDeploy(nodeUrl, result);
+    console.log(`Approve: `, result);
+  });
+
+  test("freeze nft", async () => {
+    const action: FreezeArgs = {
+      amt: "100",
+      chain_nonce: 4,
+      contract: userNftMinterContractHash.split("-")[1],
+      mint_with: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
+      to: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
+      token_id: "0",
+      sig_data: await generateFeeSig({
+        from: 38,
+        to: 4,
+        receiver: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
+        value: 100,
+      }),
+    };
+    const res = await client
+      .freezeNft(action, "50000000000", keys.publicKey, [keys])
+      .send(nodeUrl);
+    console.log(`freeze Nft Res: `, res);
+    await getDeploy(nodeUrl, res);
+  });
+
+  test("withdraw nft", async () => {
+    const action: WithdrawArgs = {
+      amt: "1000000000",
+      chain_nonce: 4,
+      contract: userNftMinterContractHash.split("-")[1],
+      to: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
+      token_id: "0",
+      sig_data: await generateFeeSig({
+        from: 38,
+        to: 4,
+        receiver: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
+        value: 1000000000,
+      }),
+    };
+    const res = await client
+      .withdrawNft(action, "30000000000", keys.publicKey, [keys])
+      .send(nodeUrl);
+    console.log(`freeze Nft Res: `, res);
+    await getDeploy(nodeUrl, res);
+  });
 
   test("withdraw fees", async () => {
     const action: WithdrawFeeData = {
@@ -413,115 +472,106 @@ describe("XP Bridge Client Tests", async () => {
     await getDeploy(nodeUrl, res);
   });
 
-  // test("validate_transfer_nft", async () => {
-  //   console.log(keys.publicKey.toAccountRawHashStr());
-  //   const action: ValidateTransferData = {
-  //     action_id: Math.floor(Math.random() * 10000000),
-  //     mint_with:
-  //       "665a5ba9bd825ae6b6c0f394bd2b3f105d596212136b3c7abfacd69f0fc01cb5",
-  //     metadata: "https://meta.polkamon.com/meta?id=10001852306",
-  //     receiver: keys.publicKey.toAccountRawHashStr(),
-  //   };
-  //   const res = await client
-  //     .validateTransferNft(
-  //       {
-  //         ...action,
-  //         sig_data: await signData(
-  //           "ValidateTransferNft",
-  //           serialize.validateTransferData(action)
-  //         ),
-  //       },
-  //       "30000000000",
-  //       keys.publicKey,
-  //       [keys]
-  //     )
-  //     .send(nodeUrl);
-  //   console.log(`Validate Transfer Nft Res: `, res);
-  //   await getDeploy(nodeUrl, res);
-  // });
+  test("validate_unfreeze_nft", async () => {
+    const faction: FreezeArgs = {
+      amt: "100",
+      chain_nonce: 4,
+      contract: userNftMinterContractHash.split("-")[1],
+      mint_with: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
+      to: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
+      token_id: "1",
+      sig_data: await generateFeeSig({
+        from: 38,
+        to: 4,
+        receiver: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
+        value: 100,
+      }),
+    };
+    const fres = await client
+      .freezeNft(faction, "50000000000", keys.publicKey, [keys])
+      .send(nodeUrl);
+    console.log(`freeze Nft Res: `, fres);
+    await getDeploy(nodeUrl, fres);
 
-  // test("validate_unfreeze_nft", async () => {
-  //   console.log(keys.publicKey.toAccountRawHashStr());
-  //   const action: ValidateUnfreezeData = {
-  //     action_id: Math.floor(Math.random() * 10000000),
-  //     contract:
-  //       "5dcc145e51ed1e989b9411ee8312c408db3b21dcd6f91cbe70cc5202d18ba4fa",
-  //     token_id: "1",
-  //     receiver: keys.publicKey.toAccountRawHashStr(),
-  //   };
-  //   const res = await client
-  //     .validateUnfreezeNft(
-  //       {
-  //         ...action,
-  //         sig_data: await signData(
-  //           "ValidateUnfreezeNft",
-  //           serialize.validateUnfreezeData(action)
-  //         ),
-  //       },
-  //       "30000000000",
-  //       keys.publicKey,
-  //       [keys]
-  //     )
-  //     .send(nodeUrl);
-  //   console.log(`Validate Unfreeze Nft Res: `, res);
-  //   await getDeploy(nodeUrl, res);
-  // });
+    const action: ValidateUnfreezeData = {
+      action_id: Math.floor(Math.random() * 10000000),
+      contract: userNftMinterContractHash.split("-")[1],
+      token_id: "1",
+      receiver: keys.publicKey.toAccountRawHashStr(),
+    };
+    const res = await client
+      .validateUnfreezeNft(
+        {
+          ...action,
+          sig_data: await signData(
+            "ValidateUnfreezeNft",
+            serialize.validateUnfreezeData(action)
+          ),
+        },
+        "30000000000",
+        keys.publicKey,
+        [keys]
+      )
+      .send(nodeUrl);
+    console.log(`Validate Unfreeze Nft Res: `, res);
+    await getDeploy(nodeUrl, res);
+  });
 
-  // test("validate_whitelist", async () => {
-  //   const action = {
-  //     action_id: Math.floor(Math.random() * 10000000),
-  //     contract:
-  //       "036d5da0cbd206615617d190ddb41d34abd6c51b1ef9273611ca7e5c463ceaf1",
-  //   };
-  //   const res = await client
-  //     .validateWhitelist(
-  //       {
-  //         ...action,
-  //         sig_data: await signData(
-  //           "WhitelistNftAction",
-  //           serialize.whitelistNft(action)
-  //         ),
-  //       },
-  //       "30000000000",
-  //       keys.publicKey,
-  //       [keys]
-  //     )
-  //     .send(nodeUrl);
-  //   console.log(res);
-  // await getDeploy(nodeUrl, res);
-  //   const data = await client.contractClient.queryContractDictionary(
-  //     "whitelist_dict",
-  //     "036d5da0cbd206615617d190ddb41d34abd6c51b1ef9273611ca7e5c463ceaf1"
-  //   );
-  //   console.log(`Whitelisted: `);
-  //   expect(data.value()).to.equal(true);
-  // });
+  test("validate_whitelist", async () => {
+    const action = {
+      action_id: Math.floor(Math.random() * 10000000),
+      contract:
+        "036d5da0cbd206615617d190ddb41d34abd6c51b1ef9273611ca7e5c463ceaf1",
+    };
+    const res = await client
+      .validateWhitelist(
+        {
+          ...action,
+          sig_data: await signData(
+            "WhitelistNftAction",
+            serialize.whitelistNft(action)
+          ),
+        },
+        "30000000000",
+        keys.publicKey,
+        [keys]
+      )
+      .send(nodeUrl);
+    console.log(res);
+    await getDeploy(nodeUrl, res);
+    const data = await client.contractClient.queryContractDictionary(
+      "whitelist_dict",
+      "036d5da0cbd206615617d190ddb41d34abd6c51b1ef9273611ca7e5c463ceaf1"
+    );
+    console.log(`Whitelisted: `);
+    expect(data.value()).to.equal(true);
+  });
 
-  // test("validate_blacklist", async () => {
-  //   const action: ValidateBlacklist = {
-  //     action_id: Math.floor(Math.random() * 10000000),
-  //     contract:
-  //       "036d5da0cbd206615617d190ddb41d34abd6c51b1ef9273611ca7e5c463ceaf3",
-  //   };
-  //   const res = await client
-  //     .validateBlacklist(
-  //       {
-  //         ...action,
-  //         sig_data: await signData(
-  //           "BlacklistNftAction",
-  //           serialize.blacklistNft(action)
-  //         ),
-  //       },
-  //       "30000000000",
-  //       keys.publicKey,
-  //       [keys]
-  //     )
-  //     .send(nodeUrl);
-  //   await getDeploy(nodeUrl, res);
-  //   const data = await client.contractClient.queryContractDictionary(
-  //     "whitelist_dict",
-  //     "036d5da0cbd206615617d190ddb41d34abd6c51b1ef9273611ca7e5c463ceaf3"
-  //   );
-  //   expect(data.value()).to.equal(false);
-  // });
+  test("validate_blacklist", async () => {
+    const action: ValidateBlacklist = {
+      action_id: Math.floor(Math.random() * 10000000),
+      contract:
+        "036d5da0cbd206615617d190ddb41d34abd6c51b1ef9273611ca7e5c463ceaf3",
+    };
+    const res = await client
+      .validateBlacklist(
+        {
+          ...action,
+          sig_data: await signData(
+            "BlacklistNftAction",
+            serialize.blacklistNft(action)
+          ),
+        },
+        "30000000000",
+        keys.publicKey,
+        [keys]
+      )
+      .send(nodeUrl);
+    await getDeploy(nodeUrl, res);
+    const data = await client.contractClient.queryContractDictionary(
+      "whitelist_dict",
+      "036d5da0cbd206615617d190ddb41d34abd6c51b1ef9273611ca7e5c463ceaf3"
+    );
+    expect(data.value()).to.equal(false);
+  });
 });

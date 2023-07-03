@@ -127,12 +127,11 @@
     "@jridgewell/resolve-uri" "^3.0.3"
     "@jridgewell/sourcemap-codec" "^1.4.10"
 
-"@make-software/ces-js-parser@=1.1.0":
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/@make-software/ces-js-parser/-/ces-js-parser-1.1.0.tgz#62879fc5962afe85068f29fc0d58a5ba4d130848"
-  integrity sha512-Fg5ZVXMxOK5REVtC4cHgXVKFqYcL6NSMdEhrxOnstBQvSBJC6MgWt548ftuTWOmUOAMLGbg7nhv7lqKcG/p68Q==
+"@make-software/ces-js-parser@^1.3.1":
+  version "1.3.1"
+  resolved "https://registry.yarnpkg.com/@make-software/ces-js-parser/-/ces-js-parser-1.3.1.tgz#6059603f09ad4f6aa756778de4fafb5676468a5e"
+  integrity sha512-ZZ23xCIdK/1uqiTdYnVLb+16uYq9aPPY3YFRM6CvCkuLqcZCUGJudhxYX9gUM3B5yr7PITe6uSwwMBitsIOtFw==
   dependencies:
-    casper-js-sdk "^2.11.0"
     ts-results "^3.3.0"
 
 "@noble/ed25519@^1.7.1":
@@ -619,7 +618,7 @@ casper-cep78-js-client@=1.4.0:
   dependencies:
     "@ethersproject/bignumber" "^5.7.0"
 
-casper-js-sdk@=2.12.1, casper-js-sdk@^2.11.0:
+casper-js-sdk@=2.12.1:
   version "2.12.1"
   resolved "https://registry.yarnpkg.com/casper-js-sdk/-/casper-js-sdk-2.12.1.tgz#67f1614cc379334c4726acc32bb75a8e5f96339a"
   integrity sha512-gpqOgIVqWxqK0lvxMjUz8p488++buGQDB5p0c+eMpgA5zdyywC+PP72hINbFxN8aiHJlQzME4U9atY7Qh047aw==
