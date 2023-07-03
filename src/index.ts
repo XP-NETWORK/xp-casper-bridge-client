@@ -4,7 +4,6 @@ import {
   RuntimeArgs,
   Keys,
   CLValueBuilder,
-  CLU256,
   CLAccountHash,
   CLKey,
 } from "casper-js-sdk";
@@ -69,9 +68,7 @@ export class XpBridgeClient {
     keys?: Keys.AsymmetricKey[],
     wasm?: Uint8Array
   ) {
-    const rt_args = RuntimeArgs.fromMap({
-      number: new CLU256(Math.ceil(Math.random() * 1000000000)),
-    });
+    const rt_args = RuntimeArgs.fromMap({});
     wasm = wasm || CONTRACT_WASM;
 
     return this.contractClient.install(
