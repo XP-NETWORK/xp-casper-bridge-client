@@ -25,6 +25,7 @@ import {
   EventsMode,
   CESEventParserFactory,
 } from "casper-cep78-js-client/dist/src";
+import fs from "fs";
 import { Serializer } from "../src/struct-serializer";
 import { config } from "dotenv";
 import {
@@ -108,8 +109,8 @@ describe("XP Bridge Client Tests", async () => {
   const client = new XpBridgeClient(nodeUrl, "casper-net-1", keys.publicKey, [
     keys,
   ]);
-  const randomGroupPk = ed.utils.randomPrivateKey();
-  const randomFeePk = ed.utils.randomPrivateKey();
+  const randomGroupPk = Buffer.from(process.env.ED25519_PK!, "hex");
+  const randomFeePk = Buffer.from(process.env.ED25519_FEE_PK!, "hex");
   const signData = async (context: string, buf: Buffer) => {
     const hashed = crypto
       .createHash("sha512")
@@ -153,7 +154,8 @@ describe("XP Bridge Client Tests", async () => {
         },
         "300000000000",
         keys.publicKey,
-        [keys]
+        [keys],
+        fs.readFileSync("./wasms/xpnft.wasm")
       )
       .send(nodeUrl);
 
@@ -415,7 +417,7 @@ describe("XP Bridge Client Tests", async () => {
       to: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
       token_id: "0",
       sig_data: await generateFeeSig({
-        from: 38,
+        from: 39,
         to: 4,
         receiver: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
         value: 100,
@@ -429,14 +431,30 @@ describe("XP Bridge Client Tests", async () => {
   });
 
   test("withdraw nft", async () => {
+    nft.setContractHash(xpnftContractHash);
+    const result = await nft
+      .approve(
+        {
+          operator: new CLByteArray(
+            Buffer.from(bridgeContractHash.split("-")[1], "hex")
+          ),
+          tokenId: "0",
+        },
+        "10000000000",
+        keys.publicKey,
+        [keys]
+      )
+      .send(nodeUrl);
+    await getDeploy(nodeUrl, result);
+
     const action: WithdrawArgs = {
       amt: "1000000000",
       chain_nonce: 4,
-      contract: userNftMinterContractHash.split("-")[1],
+      contract: xpnftContractHash.split("-")[1],
       to: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
       token_id: "0",
       sig_data: await generateFeeSig({
-        from: 38,
+        from: 39,
         to: 4,
         receiver: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
         value: 1000000000,
@@ -481,7 +499,7 @@ describe("XP Bridge Client Tests", async () => {
       to: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
       token_id: "1",
       sig_data: await generateFeeSig({
-        from: 38,
+        from: 39,
         to: 4,
         receiver: "0x0d7df42014064a163DfDA404253fa9f6883b9187",
         value: 100,
