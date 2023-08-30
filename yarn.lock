@@ -182,7 +182,7 @@
     "@nodelib/fs.scandir" "2.1.5"
     fastq "^1.6.0"
 
-"@open-rpc/client-js@^1.6.2":
+"@open-rpc/client-js@^1.8.1":
   version "1.8.1"
   resolved "https://registry.yarnpkg.com/@open-rpc/client-js/-/client-js-1.8.1.tgz#73b5a5bf237f24b14c3c89205b1fca3aea213213"
   integrity sha512-vV+Hetl688nY/oWI9IFY0iKDrWuLdYhf7OIKI6U1DcnJV7r4gAgwRJjEr1QVYszUc0gjkHoQJzqevmXMGLyA0g==
@@ -571,10 +571,10 @@ casper-cep78-js-client@^1.4.0:
   dependencies:
     "@ethersproject/bignumber" "^5.7.0"
 
-casper-js-sdk@^2.13.3:
-  version "2.13.3"
-  resolved "https://registry.yarnpkg.com/casper-js-sdk/-/casper-js-sdk-2.13.3.tgz#8a846dcca773bb7c83b6da2e84381802d88fa723"
-  integrity sha512-//AOGj62GlDjiHX4a5dE3s0DaBu3CmPjrtDQOSeoLRMPy4vyQsXpLyaQpuQ8Q4JAnbqV2ySeON1edAfssN04pw==
+casper-js-sdk@^2.15.2:
+  version "2.15.2"
+  resolved "https://registry.yarnpkg.com/casper-js-sdk/-/casper-js-sdk-2.15.2.tgz#92aaa3ab92185360dc93d9440ab6d86914137fb7"
+  integrity sha512-q0UlXeJuyVMR5I07OQMLTn2LXMzYcN+eC+QxTUP4JkUGgSMaJKpNxLKaS9uRQeY24BpqVjV6SNBFw0dfeq7AoQ==
   dependencies:
     "@ethersproject/bignumber" "^5.0.8"
     "@ethersproject/bytes" "^5.0.5"
@@ -582,7 +582,7 @@ casper-js-sdk@^2.13.3:
     "@noble/ed25519" "^1.7.3"
     "@noble/hashes" "^1.2.0"
     "@noble/secp256k1" "^1.7.1"
-    "@open-rpc/client-js" "^1.6.2"
+    "@open-rpc/client-js" "^1.8.1"
     "@scure/bip32" "^1.1.5"
     "@scure/bip39" "^1.2.0"
     "@types/ws" "^8.2.2"
