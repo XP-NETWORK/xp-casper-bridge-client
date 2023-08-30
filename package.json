@@ -13,7 +13,8 @@
     "example:usage": "ts-node examples/usage.ts",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
-    "wasm": "ts-node scripts/copy-wasms.ts"
+    "wasm": "ts-node scripts/copy-wasms.ts",
+    "deploy": "ts-node scripts/deploy-contracts.ts"
   },
   "keywords": [],
   "author": "Jan Hoffmann <jan@casperlabs.io>",
