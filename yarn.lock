@@ -127,7 +127,7 @@
     "@jridgewell/resolve-uri" "^3.0.3"
     "@jridgewell/sourcemap-codec" "^1.4.10"
 
-"@make-software/ces-js-parser@^1.3.1":
+"@make-software/ces-js-parser@^1.3.3":
   version "1.3.3"
   resolved "https://registry.yarnpkg.com/@make-software/ces-js-parser/-/ces-js-parser-1.3.3.tgz#7e50b2824f6189f365662fa81e1a2eb22dfcb214"
   integrity sha512-uJ7BgnaVbb1pkGfDCgBqES+f5+RVlVPkAYxOC6Qz9kxzIcu9HYH1eA+8EkjRO2T36uBemTjBRO6R0TdH61PIAA==
